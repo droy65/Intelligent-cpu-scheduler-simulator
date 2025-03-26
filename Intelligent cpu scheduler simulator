@@ -1,0 +1,532 @@
+#include <iostream>
+#include <vector>
+#include <algorithm>
+#include <iomanip>
+#include <queue>
+#include <map>
+#include <string>
+#include <sstream>
+#include <cmath>
+
+using namespace std;
+
+// ANSI Color Codes
+const string RESET = "\033[0m";
+const string RED = "\033[31m";
+const string GREEN = "\033[32m";
+const string YELLOW = "\033[33m";
+const string BLUE = "\033[34m";
+const string MAGENTA = "\033[35m";
+const string CYAN = "\033[36m";
+const string WHITE = "\033[37m";
+const string BOLD = "\033[1m";
+const string UNDERLINE = "\033[4m";
+
+// Bright colors
+const string BRIGHT_RED = "\033[91m";
+const string BRIGHT_GREEN = "\033[92m";
+const string BRIGHT_YELLOW = "\033[93m";
+const string BRIGHT_BLUE = "\033[94m";
+const string BRIGHT_MAGENTA = "\033[95m";
+const string BRIGHT_CYAN = "\033[96m";
+const string BRIGHT_WHITE = "\033[97m";
+
+// Process structure
+struct Process {
+    int id;
+    int arrivalTime;
+    int burstTime;
+    int priority;
+    int remainingTime;
+    int startTime;
+    int finishTime;
+    
+    Process(int id, int arrival, int burst, int prio = 0) 
+        : id(id), arrivalTime(arrival), burstTime(burst), priority(prio), 
+          remainingTime(burst), startTime(-1), finishTime(-1) {}
+};
+
+// Function prototypes
+void simulateFCFS(vector<Process>& processes);
+void simulateSJF(vector<Process>& processes);
+void simulateRoundRobin(vector<Process>& processes, int quantum);
+void simulatePriority(vector<Process>& processes, bool preemptive = false);
+void printEnhancedGanttChart(const vector<pair<int, pair<int, int>>>& gantt, const vector<Process>& processes);
+void printStatistics(const vector<Process>& processes);
+vector<Process> getProcessesFromUser();
+void displayMenu();
+void clearScreen();
+string getProcessColor(int id);
+void printExecutionDetails(const vector<pair<int, pair<int, int>>>& gantt);
+
+int main() {
+    vector<Process> processes;
+    int choice;
+    int quantum;
+    
+    do {
+        displayMenu();
+        cin >> choice;
+        
+        switch(choice) {
+            case 1:
+                processes = getProcessesFromUser();
+                break;
+            case 2:
+                if (processes.empty()) {
+                    cout << RED << "No processes entered. Please enter processes first.\n" << RESET;
+                    break;
+                }
+                simulateFCFS(processes);
+                break;
+            case 3:
+                if (processes.empty()) {
+                    cout << RED << "No processes entered. Please enter processes first.\n" << RESET;
+                    break;
+                }
+                simulateSJF(processes);
+                break;
+            case 4:
+                if (processes.empty()) {
+                    cout << RED << "No processes entered. Please enter processes first.\n" << RESET;
+                    break;
+                }
+                cout << BRIGHT_CYAN << "Enter time quantum for Round Robin: " << RESET;
+                cin >> quantum;
+                simulateRoundRobin(processes, quantum);
+                break;
+            case 5:
+                if (processes.empty()) {
+                    cout << RED << "No processes entered. Please enter processes first.\n" << RESET;
+                    break;
+                }
+                simulatePriority(processes, false); // Non-preemptive
+                break;
+            case 6:
+                if (processes.empty()) {
+                    cout << RED << "No processes entered. Please enter processes first.\n" << RESET;
+                    break;
+                }
+                simulatePriority(processes, true); // Preemptive
+                break;
+            case 7:
+                cout << BRIGHT_GREEN << "Exiting...\n" << RESET;
+                break;
+            default:
+                cout << RED << "Invalid choice. Please try again.\n" << RESET;
+        }
+    } while (choice != 7);
+    
+    return 0;
+}
+
+void clearScreen() {
+    cout << "\033[2J\033[1;1H";
+}
+
+void displayMenu() {
+    cout << BRIGHT_YELLOW << BOLD << "\n╔════════════════════════════════════════╗\n";
+    cout << "║    CPU SCHEDULING ALGORITHM SIMULATOR    ║\n";
+    cout << "╚════════════════════════════════════════╝\n" << RESET;
+    cout << BRIGHT_CYAN << " 1. Enter Processes\n";
+    cout << " 2. First-Come, First-Served (FCFS)\n";
+    cout << " 3. Shortest Job First (SJF)\n";
+    cout << " 4. Round Robin\n";
+    cout << " 5. Non-Preemptive Priority Scheduling\n";
+    cout << " 6. Preemptive Priority Scheduling\n";
+    cout << " 7. Exit\n";
+    cout << BRIGHT_MAGENTA << "\n Enter your choice: " << RESET;
+}
+
+vector<Process> getProcessesFromUser() {
+    vector<Process> processes;
+    int n, arrival, burst, priority;
+    
+    cout << BRIGHT_GREEN << "\n Enter number of processes: " << RESET;
+    cin >> n;
+    
+    for (int i = 0; i < n; i++) {
+        cout << BRIGHT_CYAN << "\n ╔═════════════════════════╗\n";
+        cout << " ║   Process " << i + 1 << " Details   ║\n";
+        cout << " ╚═════════════════════════╝\n" << RESET;
+        cout << " Arrival Time: " << RESET;
+        cin >> arrival;
+        cout << BRIGHT_CYAN << " Burst Time: " << RESET;
+        cin >> burst;
+        cout << BRIGHT_CYAN << " Priority (lower number = higher priority): " << RESET;
+        cin >> priority;
+        
+        processes.emplace_back(i + 1, arrival, burst, priority);
+    }
+    
+    return processes;
+}
+
+void simulateFCFS(vector<Process>& processes) {
+    sort(processes.begin(), processes.end(), 
+        [](const Process& a, const Process& b) {
+            return a.arrivalTime < b.arrivalTime;
+        });
+    
+    vector<pair<int, pair<int, int>>> gantt;
+    int currentTime = 0;
+    
+    for (auto& p : processes) {
+        if (currentTime < p.arrivalTime) {
+            currentTime = p.arrivalTime;
+        }
+        
+        p.startTime = currentTime;
+        currentTime += p.burstTime;
+        p.finishTime = currentTime;
+        p.remainingTime = 0;
+        
+        gantt.emplace_back(p.id, make_pair(p.startTime, p.finishTime));
+    }
+    
+    cout << BRIGHT_BLUE << "\n╔════════════════════════════════════════╗\n";
+    cout << "║        FCFS SCHEDULING RESULTS        ║\n";
+    cout << "╚════════════════════════════════════════╝\n" << RESET;
+    printEnhancedGanttChart(gantt, processes);
+    printStatistics(processes);
+}
+
+void simulateSJF(vector<Process>& processes) {
+    sort(processes.begin(), processes.end(), 
+        [](const Process& a, const Process& b) {
+            return a.arrivalTime < b.arrivalTime;
+        });
+    
+    vector<pair<int, pair<int, int>>> gantt;
+    int currentTime = 0;
+    int completed = 0;
+    int n = processes.size();
+    
+    auto cmp = [](const Process* a, const Process* b) {
+        if (a->burstTime == b->burstTime) {
+            return a->arrivalTime > b->arrivalTime;
+        }
+        return a->burstTime > b->burstTime;
+    };
+    priority_queue<Process*, vector<Process*>, decltype(cmp)> readyQueue(cmp);
+    
+    while (completed < n) {
+        for (auto& p : processes) {
+            if (p.arrivalTime <= currentTime && p.remainingTime > 0) {
+                readyQueue.push(&p);
+                p.remainingTime = -1;
+            }
+        }
+        
+        if (readyQueue.empty()) {
+            currentTime++;
+            continue;
+        }
+        
+        Process* current = readyQueue.top();
+        readyQueue.pop();
+        
+        if (current->startTime == -1) {
+            current->startTime = currentTime;
+        }
+        
+        currentTime += current->burstTime;
+        current->finishTime = currentTime;
+        current->remainingTime = 0;
+        completed++;
+        
+        gantt.emplace_back(current->id, make_pair(current->startTime, current->finishTime));
+    }
+    
+    cout << BRIGHT_BLUE << "\n╔════════════════════════════════════════╗\n";
+    cout << "║        SJF SCHEDULING RESULTS         ║\n";
+    cout << "╚════════════════════════════════════════╝\n" << RESET;
+    printEnhancedGanttChart(gantt, processes);
+    printStatistics(processes);
+}
+
+void simulateRoundRobin(vector<Process>& processes, int quantum) {
+    sort(processes.begin(), processes.end(), 
+        [](const Process& a, const Process& b) {
+            return a.arrivalTime < b.arrivalTime;
+        });
+    
+    vector<pair<int, pair<int, int>>> gantt;
+    queue<Process*> readyQueue;
+    int currentTime = 0;
+    int index = 0;
+    int n = processes.size();
+    
+    for (auto& p : processes) {
+        p.remainingTime = p.burstTime;
+        p.startTime = -1;
+        p.finishTime = -1;
+    }
+    
+    while (index < n || !readyQueue.empty()) {
+        while (index < n && processes[index].arrivalTime <= currentTime) {
+            readyQueue.push(&processes[index]);
+            index++;
+        }
+        
+        if (readyQueue.empty()) {
+            currentTime++;
+            continue;
+        }
+        
+        Process* current = readyQueue.front();
+        readyQueue.pop();
+        
+        if (current->startTime == -1) {
+            current->startTime = currentTime;
+        }
+        
+        int timeSlice = min(quantum, current->remainingTime);
+        gantt.emplace_back(current->id, make_pair(currentTime, currentTime + timeSlice));
+        current->remainingTime -= timeSlice;
+        currentTime += timeSlice;
+        
+        while (index < n && processes[index].arrivalTime <= currentTime) {
+            readyQueue.push(&processes[index]);
+            index++;
+        }
+        
+        if (current->remainingTime > 0) {
+            readyQueue.push(current);
+        } else {
+            current->finishTime = currentTime;
+        }
+    }
+    
+    cout << BRIGHT_BLUE << "\n╔══════════════════════════════════════════════╗\n";
+    cout << "║ ROUND ROBIN SCHEDULING (QUANTUM = " << setw(2) << quantum << ") ║\n";
+    cout << "╚══════════════════════════════════════════════╝\n" << RESET;
+    printEnhancedGanttChart(gantt, processes);
+    printStatistics(processes);
+}
+
+void simulatePriority(vector<Process>& processes, bool preemptive) {
+    sort(processes.begin(), processes.end(), 
+        [](const Process& a, const Process& b) {
+            return a.arrivalTime < b.arrivalTime;
+        });
+    
+    vector<pair<int, pair<int, int>>> gantt;
+    int currentTime = 0;
+    int completed = 0;
+    int n = processes.size();
+    
+    for (auto& p : processes) {
+        p.remainingTime = p.burstTime;
+        p.startTime = -1;
+        p.finishTime = -1;
+    }
+    
+    auto cmp = [](const Process* a, const Process* b) {
+        if (a->priority == b->priority) {
+            return a->arrivalTime > b->arrivalTime;
+        }
+        return a->priority > b->priority;
+    };
+    priority_queue<Process*, vector<Process*>, decltype(cmp)> readyQueue(cmp);
+    
+    Process* currentProcess = nullptr;
+    int prevTime = 0;
+    
+    while (completed < n) {
+        for (auto& p : processes) {
+            if (p.arrivalTime == currentTime) {
+                readyQueue.push(&p);
+            }
+        }
+        
+        if (preemptive) {
+            if (!readyQueue.empty() && 
+                (currentProcess == nullptr || 
+                 readyQueue.top()->priority < currentProcess->priority)) {
+                if (currentProcess != nullptr && currentProcess->remainingTime > 0) {
+                    readyQueue.push(currentProcess);
+                }
+                currentProcess = readyQueue.top();
+                readyQueue.pop();
+                
+                if (currentProcess->startTime == -1) {
+                    currentProcess->startTime = currentTime;
+                }
+                
+                if (prevTime < currentTime) {
+                    gantt.emplace_back(currentProcess->id, make_pair(currentTime, currentTime + 1));
+                    currentProcess->remainingTime--;
+                    prevTime = currentTime + 1;
+                }
+            }
+        } else {
+            if (currentProcess == nullptr || currentProcess->remainingTime == 0) {
+                if (!readyQueue.empty()) {
+                    currentProcess = readyQueue.top();
+                    readyQueue.pop();
+                    
+                    if (currentProcess->startTime == -1) {
+                        currentProcess->startTime = currentTime;
+                    }
+                }
+            }
+        }
+        
+        if (currentProcess != nullptr && currentProcess->remainingTime > 0) {
+            if (!preemptive || (preemptive && prevTime <= currentTime)) {
+                gantt.emplace_back(currentProcess->id, make_pair(currentTime, currentTime + 1));
+                currentProcess->remainingTime--;
+                prevTime = currentTime + 1;
+            }
+            
+            if (currentProcess->remainingTime == 0) {
+                currentProcess->finishTime = currentTime + 1;
+                completed++;
+                currentProcess = nullptr;
+            }
+        }
+        
+        currentTime++;
+    }
+    
+    cout << BRIGHT_BLUE << "\n╔══════════════════════════════════════════════╗\n";
+    cout << "║ PRIORITY SCHEDULING (" << (preemptive ? "PREEMPTIVE" : "NON-PREEMPTIVE") << ") ║\n";
+    cout << "╚══════════════════════════════════════════════╝\n" << RESET;
+    printEnhancedGanttChart(gantt, processes);
+    printStatistics(processes);
+}
+
+string getProcessColor(int id) {
+    vector<string> colors = {
+        BRIGHT_RED, BRIGHT_GREEN, BRIGHT_YELLOW, BRIGHT_BLUE, 
+        BRIGHT_MAGENTA, BRIGHT_CYAN, YELLOW, MAGENTA, CYAN, GREEN
+    };
+    return colors[id % colors.size()];
+}
+
+void printExecutionDetails(const vector<pair<int, pair<int, int>>>& gantt) {
+    cout << BRIGHT_YELLOW << "\n╔════════════════════════════════════════╗\n";
+    cout << "║        EXECUTION TIMELINE DETAILS      ║\n";
+    cout << "╚════════════════════════════════════════╝\n" << RESET;
+    cout << "+-----------+------------+------------+------------+\n";
+    cout << "| Process   | Start Time | End Time   | Duration   |\n";
+    cout << "+-----------+------------+------------+------------+\n";
+    
+    for (const auto& entry : gantt) {
+        int duration = entry.second.second - entry.second.first;
+        cout << "| P" << setw(2) << entry.first << "      | " 
+             << setw(6) << entry.second.first << "    | " 
+             << setw(6) << entry.second.second << "    | "
+             << setw(6) << duration << "     |\n";
+    }
+    cout << "+-----------+------------+------------+------------+\n\n";
+}
+
+void printEnhancedGanttChart(const vector<pair<int, pair<int, int>>>& gantt, const vector<Process>& processes) {
+    if (gantt.empty()) return;
+    
+    cout << BRIGHT_YELLOW << "\n╔════════════════════════════════════════╗\n";
+    cout << "║        ENHANCED GANTT CHART          ║\n";
+    cout << "╚════════════════════════════════════════╝\n" << RESET;
+    
+    // Calculate total time
+    int totalTime = gantt.back().second.second;
+    
+    // Group segments by process
+    map<int, vector<pair<int, int>>> processSegments;
+    for (const auto& entry : gantt) {
+        processSegments[entry.first].push_back(entry.second);
+    }
+    
+    // Print detailed timeline header with all time units
+    cout << "   ";
+    for (int t = 0; t <= totalTime; t++) {
+        cout << setw(2) << t << " ";
+    }
+    cout << "\n   ";
+    for (int t = 0; t <= totalTime; t++) {
+        cout << "───";
+    }
+    cout << "\n";
+    
+    // Print process bars with all time units marked
+    for (const auto& proc : processes) {
+        auto it = processSegments.find(proc.id);
+        if (it != processSegments.end()) {
+            string color = getProcessColor(proc.id);
+            cout << "P" << setw(2) << proc.id << " ";
+            
+            int currentPos = 0;
+            for (const auto& segment : it->second) {
+                // Print idle time (if any)
+                while (currentPos < segment.first) {
+                    cout << "   ";
+                    currentPos++;
+                }
+                
+                // Print execution block
+                cout << color;
+                for (int t = segment.first; t < segment.second; t++) {
+                    cout << "███";
+                    currentPos++;
+                }
+                cout << RESET;
+            }
+            
+            // Print remaining idle time (if any)
+            while (currentPos < totalTime) {
+                cout << "   ";
+                currentPos++;
+            }
+            
+            cout << "\n";
+        }
+    }
+    
+    // Print bottom timeline with all time units
+    cout << "   ";
+    for (int t = 0; t <= totalTime; t++) {
+        cout << "───";
+    }
+    cout << "\n   ";
+    for (int t = 0; t <= totalTime; t++) {
+        cout << setw(2) << t << " ";
+    }
+    cout << "\n";
+    
+    // Print execution details
+    printExecutionDetails(gantt);
+}
+
+void printStatistics(const vector<Process>& processes) {
+    cout << BRIGHT_YELLOW << "\n╔════════════════════════════════════════╗\n";
+    cout << "║        PROCESS STATISTICS           ║\n";
+    cout << "╚════════════════════════════════════════╝\n" << RESET;
+    cout << "+-----+------------+-----------+----------+-----------------+-------------------+\n";
+    cout << "| PID | Arrival    | Burst     | Priority | Turnaround Time | Waiting Time      |\n";
+    cout << "+-----+------------+-----------+----------+-----------------+-------------------+\n";
+    
+    double totalTurnaround = 0, totalWaiting = 0;
+    
+    for (const auto& p : processes) {
+        int turnaround = p.finishTime - p.arrivalTime;
+        int waiting = turnaround - p.burstTime;
+        
+        totalTurnaround += turnaround;
+        totalWaiting += waiting;
+        
+        string color = getProcessColor(p.id);
+        cout << "| " << color << "P" << setw(2) << p.id << RESET << " | " 
+             << setw(6) << p.arrivalTime << "    | " 
+             << setw(6) << p.burstTime << "    | " 
+             << setw(6) << p.priority << "    | " 
+             << setw(10) << turnaround << "      | " 
+             << setw(12) << waiting << "      |\n";
+    }
+    
+    cout << "+-----+------------+-----------+----------+-----------------+-------------------+\n";
+    
+    cout << BRIGHT_GREEN << "\n Average Turnaround Time: " << totalTurnaround / processes.size() << "\n";
+    cout << " Average Waiting Time: " << totalWaiting / processes.size() << "\n\n" << RESET;
+}
